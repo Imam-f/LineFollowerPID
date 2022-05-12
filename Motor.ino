@@ -287,57 +287,63 @@ bool isRotated (bool CW){
 //------------------------------------------------------------------------------------------
 
 int isNode() {
-  int isNode;
-  // Slows Down Robot
-  motorWrite(motor_dir, motor_dir, init_v_L-40, init_v_R-40);
-  // Check If It Meets Node for 2nd time
+  bool isNode;
+  // Check If It Meets Node
   readSensor(ir_pin_FL, ir_pin_FR, &ir_val_LL[0], &ir_val_RR[0]);
   isNode = ir_val_LL[0] + ir_val_RR[0] > 1000;
-  //delay(100);
   Serial.println(ir_val_LL[0]);
   Serial.println(ir_val_RR[0]);
 
   Serial.println(isNode);
-  while (isNode) {
-    Serial.println("\nstopCar\n");
+  if (isNode) {
     motorWrite(0, 0, 0, 0);
-    delay(2000);
-    stopCar();
+    int adjustMode = 0;             // 0: Too Front/Behind, 1: Too Right/Left
+    while (!readQR()){
+      adjustCar(adjustMode);
+      adjustMode = !adjustMode;
+    }
   }
   return 1;
 }
 
-void stopCar() {
-  int angle, stopCondition, sensorSummed, ctrl_sig, motorDirection;
+void adjustCar(int adjustMode) {
+  int angle, sensorSummed, ctrl_sig, motorDirection;
   int del, motor_dir_t;
 
-  stopCondition = 0;
-  while (!stopCondition) {
-    printSensor (ir_val_L,  ir_val_R,  ir_val_LL[0], 
-                 ir_val_LL[1],ir_val_RR[0], ir_val_RR[1]);
-      // Sensor Reading
-//    readSensor(ir_pin_L, ir_pin_R, &ir_val_L, &ir_val_R);                   // For Aligning with Main Line
-//    readSensor(ir_pin_FL, ir_pin_BL, &ir_val_LL[0], &ir_val_LL[1]);         // For reading QR
-//    readSensor(ir_pin_FR, ir_pin_BR, &ir_val_RR[0], &ir_val_RR[1]);
-    printSensor(ir_val_L,ir_val_R,ir_val_LL[0],ir_val_LL[1],ir_val_RR[0],ir_val_RR[1]);
-    // Condition When Robot Really Stopped
-    sensorSummed = ir_val_LL[0] + ir_val_LL[1] + ir_val_RR[0] + ir_val_RR[0] + ir_val_L + ir_val_R;
-    Serial.println(sensorSummed);
-    if  ((ir_val_LL[0] < line_th) && (ir_val_LL[1] < line_th)
-      && (ir_val_RR[0] < line_th) && (ir_val_RR[1] < line_th))
-    {
-      stopCondition = 1;
+  Serial.println("\n adjustCar \n");
+  if (!adjustMode){                     // 0: Too Front/Behind For reading QR
+    
+    readSensor(ir_pin_FL, ir_pin_BL, &ir_val_LL[0], &ir_val_LL[1]);        
+    if(ir_val_LL[0] + ir_val_LL[1] > line_th){
+        if(ir_val_LL[0] > line_th){      // Left Too Behind
+          motor_dir_t = 1;
+        }
+        else if(ir_val_LL[1] > line_th){ // Left Too Front
+          motor_dir_t = 0;
+        }
+        motorWrite(!motor_dir_t, motor_dir_t, init_v_L, 0);
     }
-
-    // Aligning with Main Line
-    byte ret = B00000;               // 5 IR front sensor
+    
+   readSensor(ir_pin_FR, ir_pin_BR, &ir_val_RR[0], &ir_val_RR[1]);
+   if(ir_val_RR[0] + ir_val_RR[1] > line_th){
+        if(ir_val_RR[0] > line_th){      // Right Too Behind
+          motor_dir_t = 1;
+        }
+        else if(ir_val_LL[1] > line_th){ // Right Too Front
+          motor_dir_t = 0;
+        }
+        motorWrite(motor_dir_t, !motor_dir_t, 0, init_v_R);
+    }
+    delay(100);
+  } 
+  
+   else {                         // 1: Too Right/Left, Aligning with Main Line
+    byte ret = B00000;            // Front IR sensor 
     readShiftReg(&ret);
 
     if(ret == B00100){
-      motorWrite(0, 0, 0, 0);
+      Serial.println("Aligned w/ Main Line");
     }else{
-      Serial.print("1 CTRL SGNL---------- :: ");
-      Serial.println(ctrl_sig);
       switch (ret) { 
     
         case B00001:
@@ -373,41 +379,8 @@ void stopCar() {
       motorWrite(motor_dir_t, !motor_dir_t, init_v_L, init_v_R);
       delay(del);
     }
-    motorWrite(0, 0, 0, 0);
-    delay(200);
-    readSensor(ir_pin_FL, ir_pin_BL, &ir_val_LL[0], &ir_val_LL[1]);         // For reading QR
-    if(ir_val_LL[0] + ir_val_LL[1] > line_th){
-        if(ir_val_LL[0] > line_th){     // Left Too Behind
-          motor_dir_t = 1;
-        }
-        else if(ir_val_LL[1] > line_th){ // Left Too Front
-          motor_dir_t = 0;
-        }
-        motorWrite(!motor_dir_t, motor_dir_t, init_v_L, 0);
-        delay(100);
-        motorWrite(0, 0, 0, 0);
-        delay(200);
-    }
-    readSensor(ir_pin_FR, ir_pin_BR, &ir_val_RR[0], &ir_val_RR[1]);
-
-   if(ir_val_RR[0] + ir_val_RR[1] > line_th){
-        if(ir_val_RR[0] > line_th){     // Right Too Behind
-          motor_dir_t = 1;
-        }
-        else if(ir_val_LL[1] > line_th){ // Right Too Front
-          motor_dir_t = 0;
-        }
-        motorWrite(motor_dir_t, !motor_dir_t, 0, init_v_R);
-        delay(100);
-        motorWrite(0, 0, 0, 0);
-        delay(200);
-    }
   }
-
-  motorWrite(0, 0, 0, 0);
-  delay(2000);
-  while (!readQR()) {
-  }
+  motorWrite(0, 0, 0, 0);            // Stop Adjusting
 }
 
 bool isObstacle(){
@@ -430,22 +403,19 @@ bool isObstacle(){
 }
 
 int readQR() {
-    int doneRead, reading;
-    while (!doneRead) {
+    int doneRead, reading, times_reading;
         Wire.beginTransmission(addr_ESP);
-        Wire.write(byte(0x00));       //start with register 3.
+        Wire.write(byte(0x00));                  // Start with register[3].
         Wire.endTransmission();
 
         Wire.requestFrom(addr_ESP, 2);
-        while (!doneRead) {
+        while (!doneRead && times_reading < 4) { // Limit QR Reading only 4 times
             delay(50);
             if(Wire.available() >= 2) {
-                doneRead = Wire.read();
-                reading = Wire.read();
+                doneRead = Wire.read();          // register[0]
+                reading = Wire.read();           // register[1]
             }
         }
-        delay(500);
-    }
     state = reading;
     return doneRead;
 }
@@ -553,58 +523,3 @@ void printSensor(int ir_val_L, int ir_val_R, int ir_val_LL0,
     Serial.println();
     Serial.println();
 }
-
-
-//void stopCar(int *state) {
-//  int angle, stopCondition, sensorSummed, ctrl_sig, motorDirection;
-//
-//  stopCondition = 0;
-//  while (!stopCondition) {
-//    // Sensor Reading
-//    readSensor(ir_pin_L, ir_pin_R, &ir_val_L, &ir_val_R);                   // For Aligning with Main Line
-//    readSensor(ir_pin_FL, ir_pin_BL, &ir_val_LL[0], &ir_val_LL[1]);         // For reading QR
-//    readSensor(ir_pin_FR, ir_pin_BR, &ir_val_RR[0], &ir_val_RR[1]);
-//    printSensor(ir_val_L,ir_val_R,ir_val_LL[0],ir_val_LL[1],ir_val_RR[0],ir_val_RR[1]);
-//    // Condition When Robot Really Stopped
-//    sensorSummed = ir_val_LL[0] + ir_val_LL[1] + ir_val_RR[0] + ir_val_RR[0] + ir_val_L + ir_val_R;
-//    Serial.println(sensorSummed);
-//    if (sensorSummed < (ir_val_LL[0] < line_th) && (ir_val_LL[1] < line_th)
-//                     && (ir_val_RR[0] < line_th) && (ir_val_RR[1] < line_th))
-//    {
-//      stopCondition = 1;
-//    }
-//
-//    // Aligning with Main Line
-//    ctrl_sig = calculatePID((ir_val_L - ir_val_R)/100);
-//    Serial.print("1 CTRL SGNL---------- :: ");
-//    Serial.println(ctrl_sig);
-//    int motor_v_L = init_v_L - ctrl_sig;
-//    int motor_v_R = init_v_R + ctrl_sig;
-//    int motorLeftDirection =  (ir_val_L < ir_val_R); // Left Tire
-//    int motorRightDirection = !(ir_val_L < ir_val_R); // Right Tire
-//    motorWrite(motorLeftDirection, motorRightDirection, motor_v_L, motor_v_R);
-//    delay(100);
-//    
-//    // Aligning with QR Code
-//    ctrl_sig = calculatePID((ir_val_RR[0] + ir_val_LL[0] + ir_val_RR[1] + ir_val_LL[1]))/200;
-//    Serial.print("2 CTRL SGNL---------- :: ");
-//    Serial.println(ctrl_sig);
-//    motor_v_L = init_v_L - ctrl_sig;
-//    motor_v_R = init_v_R - ctrl_sig;
-//    if((ir_val_LL[0] - ir_val_LL[1] > line_th_D) &    // Too Front
-//       (ir_val_RR[0] - ir_val_RR[1] > line_th_D)){
-//        motorDirection = 1;
-//      }
-//    else{                                             // Too Behind
-//        motorDirection = 0;
-//    }
-//                        
-//    motorWrite(motorDirection, motorDirection, motor_v_L, motor_v_R);
-//    delay(100);
-//  }
-//
-//  motorWrite(0, 0, 0, 0);
-//  delay(2000);
-//  while (!readQR(state)) {
-//  }
-//}
