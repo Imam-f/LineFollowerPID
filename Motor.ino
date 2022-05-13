@@ -105,10 +105,18 @@ int state, action;                  // Current State and Action
 
 unsigned long oldTime;              // Time measure
 
+int azSetPoint;
+
 void loop() {
-  moveCar();
+  azSetPoint = compass.getAzimuth();
+  readShiftReg(&ret);
+  if(ret != B10000 && ret != B00001){
+    moveCar2();                               // Robot on Line : Use Compass
+  }else{
+    moveCar();                                // Robot Slides from Line : Use Line Follower
+  }
   isNode();
-//  Serial.print("DATA, DATE, TIMER, ");
+//  Serial.print("DATA, DATE, TIMER, ");      // Logging
 //  Serial.print(error);
 //  Serial.println(" ,");
 
@@ -142,6 +150,18 @@ void loop() {
   delay(50);
 }
 
+void moveCar2(){
+  int az, err_az;
+  compass.read();
+  az = compass.getAzimuth();
+  err_az = azSetPoint - az;
+
+  ctrl_sig = calculatePID(err_az);      // Run Motor
+  motor_v_L = init_v_L - ctrl_sig;
+  motor_v_R = init_v_R + ctrl_sig;
+  motorWrite(motor_dir, motor_dir, motor_v_L, motor_v_R);
+  delay(5);
+}
 void moveCar() {
   //readSensor(ir_pin_L, ir_pin_R, &ir_val_L, &ir_val_R);  // 2 IR front sensor
   //-----------------------------------------------------------------------          
