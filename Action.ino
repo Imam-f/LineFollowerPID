@@ -35,10 +35,15 @@ void loop() {
             } else if(command.startsWith("state")) {
                 command.remove(0, 6);
                 Serial.println(s);
+            } else {
+                Serial.println("unknown command");
             }
         } else if (command.startsWith("set")) {
             command.remove(0, 4);
             if(command.startsWith("action")) {
+
+
+
                 command.remove(0, 7);
                 a = (int)command[0] + 1 - (int)'1';
 
@@ -70,12 +75,16 @@ void loop() {
                 /////////////
                 Serial.print("set a");
                 Serial.println(a);
-            }
-            if(command.startsWith("state")) {
+
+
+
+            } else if(command.startsWith("state")) {
                 command.remove(0, 6);
                 s = (int)command[0] + 1 - (int)'1';
                 Serial.print("set s");
                 Serial.println(s);
+            } else {
+                Serial.println("unknown command");
             }
         } else if (command.startsWith("g_status")) {
             Serial.println("[success] ");
