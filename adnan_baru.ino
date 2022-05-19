@@ -49,30 +49,6 @@ QMC5883LCompass compass;
 #define C_line 0.1
 #define C_az 0.4
 
-// -----------------------------------
-
-// Global Variable
-// uint8_t state;
-int ir_val_L, ir_val_R; // Sensors Reading
-int ir_val_LL[2], ir_val_RR[2];
-int prev_b;
-byte ret = B00000;
-
-float error, errorLast, erroInte; // PID Parameter
-int err, ctrl_sig;
-float Kp = 20;
-float Ki = 10;
-float Kd = 0;
-float errorDiff;
-float output;
-
-int motor_v_L; // Motor Speed
-int motor_v_R;
-
-int state, action; // Current State and Action
-
-unsigned long oldTime; // Time measure
-
 void setup() {
   Serial.begin(56000);               // Open serial communications and wait for port to open:9600
   while (!Serial) {
@@ -113,62 +89,51 @@ void setup() {
 
 }
 
+// Global Variable
+//uint8_t state;
+int ir_val_L, ir_val_R;             // Sensors Reading
+int ir_val_LL[2], ir_val_RR[2];
+int prev_b;
+byte ret = B00000;     
+
+float error, errorLast, erroInte;   // PID Parameter
+float err, ctrl_sig;
+float Kp = 10;
+float Ki = 0;
+float Kd = 0;
+float errorDiff;
+float output;
+
+int motor_v_L;                      // Motor Speed
+int motor_v_R;
+
+int state, action = 2;              // Current State and Action
+
+unsigned long oldTime;              // Time measure
+
+float err_az;
+int azSetPoint;
+int prev_state;
+float lasterror, calculatedaz, calculatedline;
+int start_state = 1;
+int abs_direction[4] = {0, 100, 180, 255};
+int setPoint_direction;
+int current_direction;
+int mode = 0;
+
+bool isNodeCondition1;
+
 void loop() {
-{
-  // moveCar();
-  // isNode();
-  //  Serial.print("DATA, DATE, TIMER, ");
-  //  Serial.print(error);
-  //  Serial.println(" ,");
-
-  // //  Default Condition Robot Always Moving
-  // readPYNQ(state, action);
-  // if (state != Goal) {
-  //   if (action == 0)
-  //   {
-  //     moveCar();
-  //     Serial.println("\nmoveCar\n");
-  //   }
-  //   else if (action == 1)
-  //   {
-  //     rotate(0);
-  //     moveCar();
-  //     Serial.println("\nKanan\n");
-  //   }
-  //   else if (action == 2)
-  //   {
-  //     Serial.println("\nBelakang\n");
-  //     rotate(0);
-  //     rotate(0);
-  //     moveCar();
-  //   }
-  //   else
-  //   {
-  //     Serial.println("\nKiri\n");
-  //     rotate(1);
-  //     moveCar();
-  //   }
-  // } else {
-  //   Serial.println("GOAL REACHED!");
-  // }
-
-  // Serial.println(state);
-  // delay(50);
-}
-  
-  if (start_state) {
+  if (start_state){
     compass.read();
     azSetPoint = compass.getAzimuth();
     current_direction = ((azSetPoint + (azSetPoint%90))/90);
     azSetPoint = abs_direction[current_direction];
-    
     //azSetPoint = current_direction * 90;
     Serial.print("init az:");
     Serial.println(azSetPoint);
     start_state = 1;
   }
-
-  {
   Serial.print("DATA, DATE, TIMER,");      // Logging
 
   Serial.print(ir_val_RR[0]);
@@ -192,81 +157,33 @@ void loop() {
   Serial.print(calculatedline);
   Serial.print(",");
 
-  Serial.print(error);
+    Serial.print(error);
   Serial.println(",");
-  }
 
-  if (mode == 1) {
-    isNode();
-    moveCar();
-    moveCar2();
-    
-    ctrl_sig = calculatePID(err,err_az);        // Calculate PID
-    motor_v_L = init_v_L + ctrl_sig;
-    motor_v_R = init_v_R - ctrl_sig;
-    motorWrite(motor_dir, motor_dir, motor_v_L, motor_v_R);
-  }
-  delay(50);
-
-  if (Serial.available() > 0) {
-    String command;
-    overflow = 1;
-
-    for (int i = 0; i < 50; i++) {
-      while (Serial.available() < 1) {}
-      userInput[i] = Serial.read();
-      if (userInput[i] == '\n' || userInput[i] == '\0') {
-        overflow = 0;
-        break;
-      }
-    }
-
-    if (overflow == 1) {
-      return;
-    }
-    command = String(userInput);
-
-    if (command.startsWith("get") {
-      command.remove(0, 4);
-      if (command.startsWith("internal")) {
-        command.remove(0, 9);
-        Serial.println("internal working");
-      } else if (command.startsWith("state")) {
-        command.remove(0, 6);
-        Serial.println(s);
-      } else {
-        Serial.println("unknown command");
-      }
-    } else if (command.startsWith("set")) {
-      command.remove(0, 4);
-      if (command.startsWith("action")) {
-        Serial.print("set a");
-        Serial.println(a);
-
-        rotate(a);
+//  Default Condition Robot Always Moving
+//  readPYNQ(state,action);
+  if (state != Goal) {
+    if (mode == 0){
+        rotate(action);
         mode = 1;
-
-      } else if (command.startsWith("state")) {
-        command.remove(0, 6);
-        s = (int)command[0] - (int)'0';
-        Serial.print("set s");
-        Serial.println(s);
-      }
-      else
-      {
-        Serial.println("unknown command");
-      }
-    }
-    else if (command.startsWith("g_status"))
-    {
-      Serial.println("[success] ");
-    }
-    else
-    {
-      Serial.flush();
-    }
-    delay(500);
   }
+    else if (mode == 1){
+        isNode();
+        moveCar();
+        moveCar2();
+        ctrl_sig = calculatePID(err,err_az);        // Calculate PID
+        motor_v_L = init_v_L + ctrl_sig;
+        motor_v_R = init_v_R - ctrl_sig;
+        motorWrite(motor_dir, motor_dir, motor_v_L, motor_v_R);
+    }
+    
+  } else {
+    Serial.println("GOAL REACHED!");
+    motorWrite(0, 0, 0, 0);
+    delay(10000);
+  }
+  //Serial.println(state);
+  delay(50);
 }
 
 void moveCar2(){
